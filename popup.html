@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>The Redaction Act</title>
+    <link href="bootstrap.css" rel="stylesheet">
+    <script src="knockout.js"></script>
+    <script src="knockout-secure-binding.js"></script>
+    <script src="popup.js"></script>
+    <script src="bootstrap.js"></script>
+
+    <style>
+        body {
+            width: 400px;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-light" style="padding: 0 !important;">  
+    <div class="container py-5" style="margin: 0 0 0 0 !important; padding-top: 8px !important; padding-bottom: 12px !important;">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow-sm">
+                    <div class="card-header text-center bg-primary text-white" data-bind="css: { 'bg-success': filterEnabled, 'bg-danger': !filterEnabled }">
+                        <h1 class="mb-0">The Redaction Act</h1>
+                    </div>
+                    <div class="card-body">
+                        <form data-bind="submit: addKeyword" class="mb-4">
+                            <div class="input-group">
+                                <input type="text" class="form-control" data-bind="value: newKeyword"
+                                    placeholder="Add keyword(s)">
+                                <button type="button" class="btn btn-primary" data-bind="click: addKeyword">
+                                    Add
+                                </button>
+                            </div>
+                        </form>
+                        <ul class="list-group mb-4" data-bind="foreach: keywords">
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span data-bind="text: $data"></span>
+                                <button class="btn btn-danger btn-sm" data-bind="click: $parent.removeKeyword">
+                                    Remove
+                                </button>
+                            </li>
+                        </ul>
+                        <div class="d-grid">
+
+                            <button class="btn" data-bind="click: toggleFilter, css: { 'btn-success': !filterEnabled, 'btn-danger': filterEnabled }">
+                                <span data-bind="text: isFilterOn"></span> for (<span data-bind="text: currentDomain"></span>)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

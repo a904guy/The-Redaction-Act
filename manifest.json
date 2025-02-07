@@ -1,0 +1,43 @@
+{
+    "manifest_version": 3,
+    "name": "The Redaction Act",
+    "short_name": "RedactionAct",
+    "version": "1.0",
+    "description": "Filters out elements containing specified keywords to enhance page readability.",
+    "author": "Hawkins.Tech Inc",
+    "homepage_url": "https://hawkins.tech",
+    "icons": {
+        "16": "icon_on.png",
+        "48": "icon_on.png",
+        "128": "icon_on.png"
+    },
+    "permissions": [
+        "storage",
+        "activeTab"
+    ],
+    "host_permissions": [
+        "<all_urls>"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "content.js"
+            ]
+        }
+    ],
+    "action": {
+        "default_popup": "popup.html",
+        "default_icon": {
+            "16": "icon_on.png",
+            "48": "icon_on.png",
+            "128": "icon_on.png"
+        },
+        "default_title": "The Redaction Act"
+    }
+}
