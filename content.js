@@ -10,6 +10,10 @@ chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilte
         return currentKeywords.some(k => lower.includes(k.toLowerCase()));
     };
 
+    const containsKeywords = text => {
+        return currentKeywords.filter(keyword => text.toLowerCase().includes(keyword.toLowerCase()));
+    }
+
     const getRepeatingAncestor = el => {
         let current = el;
         while (current && current.parentElement && current.parentElement.tagName !== "BODY") {
@@ -28,18 +32,28 @@ chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilte
         console.info("Keywords:", currentKeywords);
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
         const matched = [];
+        const screenArea = window.innerWidth * window.innerHeight;
+
+        const isSmallEnough = el => {
+            const { width, height } = el.getBoundingClientRect();
+            return width * height < 0.5 * screenArea;
+        };
+
         while (walker.nextNode()) {
             const node = walker.currentNode;
-            if (hasKeyword(node.nodeValue)) {
-                const parentElement = node.parentElement;
-                matched.push(parentElement);
-                const ancestor = getRepeatingAncestor(parentElement);
-                if (ancestor) {
-                    console.log("%cAncestor match: " + node.nodeValue.trim(), "color: #009688; font-weight: bold;");
-                    matched.push(ancestor);
-                }
-            }
+            if (!hasKeyword(node.nodeValue)) continue;
+            
+            const parentElement = node.parentElement;
+            if (!isSmallEnough(parentElement)) continue;
+            matched.push(parentElement);
+            
+            const ancestor = getRepeatingAncestor(parentElement);
+            if (!ancestor || !isSmallEnough(ancestor)) continue;
+            console.log("%cAncestor Match: " + node.nodeValue.trim(), "color: #009688; font-weight: bold;");
+            console.log('%cKeywords Matched: ' + containsKeywords(node.nodeValue.trim()),  "color:rgb(150, 0, 0); font-weight: bold;");
+            matched.push(ancestor);
         }
+
         console.info("Total matched elements:", matched.length);
         matched.forEach(container => {
             container.classList.add("redaction-filter");
@@ -59,9 +73,8 @@ chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilte
     observer.observe(document.body, { childList: true, subtree: true });
 
     chrome.storage.onChanged.addListener((changes, area) => {
+        console.group("Storage Change");
         if (area === "sync") {
-            console.group("Storage Change");
-            console.info("Changes:", changes);
             if (changes.siteFilters) {
                 console.info("siteFilters updated:", changes.siteFilters.newValue);
                 chrome.storage.sync.get("siteFilters", ({ siteFilters }) => {
@@ -77,7 +90,7 @@ chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilte
                 currentKeywords = changes.keywords.newValue || [];
                 checkContent();
             }
-            console.groupEnd();
         }
+        console.groupEnd();
     });
 });
