@@ -4,8 +4,8 @@
     "short_name": "RedactionAct",
     "version": "1.0",
     "description": "Filters out elements containing specified keywords to enhance page readability.",
-    "author": "Hawkins.Tech Inc",
-    "homepage_url": "https://hawkins.tech",
+    "author": "Andy Hawkins",
+    "homepage_url": "https://github.com/a904guy/Redaction-Act",
     "icons": {
         "16": "icon_on.png",
         "48": "icon_on.png",
