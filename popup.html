@@ -36,16 +36,14 @@
                                 </button>
                             </div>
                         </form>
-                        <ul class="list-group mb-4" data-bind="foreach: keywords">
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <!-- Replace the list group with pill layout -->
+                        <div class="mb-4" data-bind="foreach: keywords">
+                            <span class="badge rounded-pill bg-danger me-1 mt-1">
                                 <span data-bind="text: $data"></span>
-                                <button class="btn btn-danger btn-sm" data-bind="click: $parent.removeKeyword">
-                                    Remove
-                                </button>
-                            </li>
-                        </ul>
+                                <button type="button" class="btn-close btn-close-white" aria-label="Remove" data-bind="click: $parent.removeKeyword"></button>
+                            </span>
+                        </div>
                         <div class="d-grid">
-
                             <button class="btn" data-bind="click: toggleFilter, css: { 'btn-success': !filterEnabled, 'btn-danger': filterEnabled }">
                                 <span data-bind="text: isFilterOn"></span> for (<span data-bind="text: currentDomain"></span>)
                             </button>
