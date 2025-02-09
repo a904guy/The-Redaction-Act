@@ -29,28 +29,29 @@ chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilte
 
     const checkContent = () => {
         console.group("Content Check");
-        console.info("Keywords:", currentKeywords);
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
         const matched = [];
         const screenArea = window.innerWidth * window.innerHeight;
 
-        const isSmallEnough = el => {
-            const { width, height } = el.getBoundingClientRect();
-            return width * height < 0.5 * screenArea;
-        };
+            const isSmallEnough = el => {
+                const { width, height } = el.getBoundingClientRect();
+                return width * height < 0.5 * screenArea;
+            };
 
         while (walker.nextNode()) {
             const node = walker.currentNode;
             if (!hasKeyword(node.nodeValue)) continue;
-            
+
             const parentElement = node.parentElement;
             if (!isSmallEnough(parentElement)) continue;
             matched.push(parentElement);
-            
+
             const ancestor = getRepeatingAncestor(parentElement);
             if (!ancestor || !isSmallEnough(ancestor)) continue;
+
             console.log("%cAncestor Match: " + node.nodeValue.trim(), "color: #009688; font-weight: bold;");
-            console.log('%cKeywords Matched: ' + containsKeywords(node.nodeValue.trim()),  "color:rgb(150, 0, 0); font-weight: bold;");
+            console.log('%cKeywords Matched: ' + containsKeywords(node.nodeValue.trim()), "color:rgb(150, 0, 0); font-weight: bold;");
+
             matched.push(ancestor);
         }
 
@@ -75,6 +76,7 @@ chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilte
     chrome.storage.onChanged.addListener((changes, area) => {
         console.group("Storage Change");
         if (area === "sync") {
+
             if (changes.siteFilters) {
                 console.info("siteFilters updated:", changes.siteFilters.newValue);
                 chrome.storage.sync.get("siteFilters", ({ siteFilters }) => {
@@ -85,11 +87,13 @@ chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilte
                     checkContent();
                 });
             }
+            
             if (changes.keywords) {
                 console.info("keywords updated:", changes.keywords.newValue);
                 currentKeywords = changes.keywords.newValue || [];
                 checkContent();
             }
+
         }
         console.groupEnd();
     });
