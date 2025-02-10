@@ -22,6 +22,20 @@ The Redaction Act is a browser extension designed to enhance your web experience
 - Add or remove keywords as required.
 - Toggle the filter off or on, to immediately apply changes on the current domain.
 
+## Screenshots
+### Main Panel
+![Main Panel](https://github.com/a904guy/The-Redaction-Act/blob/main/media/MainPanel.png)
+
+### Reddit Before
+![Reddit Before](https://github.com/a904guy/The-Redaction-Act/blob/main/media/Screenshot-Before.png)
+### Reddit After
+![Reditt After](https://github.com/a904guy/The-Redaction-Act/blob/main/media/Screenshot-After.png)
+
+### CNN Before
+![CNN Before](https://github.com/a904guy/The-Redaction-Act/blob/main/media/Screenshot-CNN-Before.png)
+### CNN After
+![CNN After](https://github.com/a904guy/The-Redaction-Act/blob/main/media/Screenshot-CNN-After.png)
+
 ## Disclaimer
 
 This extension is provided as-is without any warranty. Use it responsibly and report any issues to the repository maintainers.
