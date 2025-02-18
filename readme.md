@@ -10,9 +10,13 @@ The Redaction Act is a browser extension designed to enhance your web experience
 
 ## Installation
 
-1. Download the extension.
-2. Install it on your browser.
-3. Configure your keywords and settings as needed.
+### Chrome Webstore
+[Click here to install the plugin via the Chrome Extension Webstore](https://chromewebstore.google.com/detail/the-redaction-act/kmefhhleokinmkeglppeebgfkbnmjhjn?authuser=0&hl=en)
+
+### From GitHub
+
+1. Download the extension from releases.
+2. Install it on your browser via unpacked extension.
 
 **Note:** We are awaiting approval to be listed on the Chrome Extension Web Store. In the meantime, please load the unpacked extension from the releases tab zip file.
 
