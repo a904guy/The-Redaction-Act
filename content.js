@@ -1,9 +1,22 @@
+var DEBUG = false;
 const getDomain = url => new URL(url).hostname;
 
 chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilters = {} }) => {
     const currentDomain = getDomain(window.location.href);
     let filterEnabled = siteFilters[currentDomain] ?? true;
     let currentKeywords = keywords;
+
+    /**
+     * Logs messages to the console only if DEBUG is true.
+     *
+     * @param {string} type - The type of console method (e.g., "log", "info", "warn", "error", "group", "groupEnd").
+     * @param {...any} args - The arguments to pass to the console method.
+     */
+    const debugLog = (type, ...args) => {
+        if (DEBUG && console[type]) {
+            console[type](...args);
+        }
+    };
 
     /**
      * Checks if the given text contains any of the current keywords.
@@ -56,7 +69,7 @@ chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilte
      * based on the filterEnabled flag.
      */
     const checkContent = () => {
-        console.group("Content Check");
+        debugLog("group", "Content Check");
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
         const matched = [];
         const screenArea = window.innerWidth * window.innerHeight;
@@ -95,14 +108,14 @@ chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilte
             const ancestor = getRepeatingAncestor(parentElement);
             if (!ancestor || !isSmallEnough(ancestor)) continue;
 
-            console.log("%cAncestor Match: " + node.nodeValue.trim(), "color: #009688; font-weight: bold;");
-            console.log('%cKeywords Matched: ' + containsKeywords(node.nodeValue.trim()), "color:rgb(150, 0, 0); font-weight: bold;");
+            debugLog("log", "%cAncestor Match: " + node.nodeValue.trim(), "color: #009688; font-weight: bold;");
+            debugLog("log", '%cKeywords Matched: ' + containsKeywords(node.nodeValue.trim()), "color:rgb(150, 0, 0); font-weight: bold;");
 
             matched.push(ancestor);
         }
 
         // Log the total number of matched elements to the console.
-        console.info("Total matched elements:", matched.length);
+        debugLog("info", "Total matched elements:", matched.length);
 
         // Iterate over each matched element, add the "redaction-filter" class,
         // and set the display style based on the filterEnabled flag.
@@ -112,7 +125,7 @@ chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilte
         });
 
         // End the console group for the content check.
-        console.groupEnd();
+        debugLog("groupEnd");
     };
 
     // Initial Page Load Function Call
@@ -120,10 +133,10 @@ chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilte
 
     // Create a new MutationObserver instance to monitor changes in the DOM.
     const observer = new MutationObserver(() => {
-        console.group("DOM Mutation");
-        console.info("Content re-check triggered by DOM update.");
+        debugLog("group", "DOM Mutation");
+        debugLog("info", "Content re-check triggered by DOM update.");
         checkContent();
-        console.groupEnd();
+        debugLog("groupEnd");
     });
 
     // Start observing the document body for changes in its child elements and subtree.
@@ -131,12 +144,12 @@ chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilte
 
     // Listen for changes in Chrome storage and update the content accordingly
     chrome.storage.onChanged.addListener((changes, area) => {
-        console.group("Storage Change");
+        debugLog("group", "Storage Change");
         if (area === "sync") {
 
             // Check if the siteFilters have changed in the storage
             if (changes.siteFilters) {
-                console.info("siteFilters updated:", changes.siteFilters.newValue);
+                debugLog("info", "siteFilters updated:", changes.siteFilters.newValue);
                 chrome.storage.sync.get("siteFilters", ({ siteFilters }) => {
                     filterEnabled = siteFilters[currentDomain] ?? true;
                     document.querySelectorAll(".redaction-filter").forEach(el => {
@@ -148,12 +161,12 @@ chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilte
             
             // Check if the keywords have changed in the storage
             if (changes.keywords) {
-                console.info("keywords updated:", changes.keywords.newValue);
+                debugLog("info", "keywords updated:", changes.keywords.newValue);
                 currentKeywords = changes.keywords.newValue || [];
                 checkContent();
             }
 
         }
-        console.groupEnd();
+        debugLog("groupEnd");
     });
 });

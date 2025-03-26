@@ -48,6 +48,7 @@ function ViewModel() {
     };
 
     self.isFilterOn = ko.computed(() => self.filterEnabled() ? "Toggle OFF" : "Toggle On");
+    self.backgroundColor = ko.computed(() => self.filterEnabled() ? '#f44336' : '#4caf50');
 
     self.toggleFilter = () => {
         chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
