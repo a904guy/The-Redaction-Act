@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "The Redaction Act",
     "short_name": "RedactionAct",
-    "version": "1.2",
+    "version": "1.3",
     "description": "Filters out elements containing specified keywords to enhance page readability.",
     "author": "Andy Hawkins",
     "homepage_url": "https://github.com/a904guy/Redaction-Act",
