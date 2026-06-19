@@ -1,0 +1,390 @@
+/* The Redaction Act — popup UI. Tuned to Chrome's Material You aesthetic with
+   light/dark support. Layout is driven by Knockout bindings in popup.html. */
+
+:root {
+    color-scheme: light dark;
+
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-variant: #f1f3f4;
+    --surface-hover: #f6f8fc;
+    --border: rgba(0, 0, 0, 0.10);
+    --text: #1f1f1f;
+    --text-secondary: #5f6368;
+
+    --primary: #0b57d0;
+    --primary-hover: #0a4cb8;
+    --on-primary: #ffffff;
+    --primary-container: #d3e3fd;
+    --on-primary-container: #041e49;
+
+    --switch-track-off: #c4c7c5;
+    --switch-thumb-off: #ffffff;
+
+    --danger: #c5221f;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.10), 0 1px 2px rgba(0, 0, 0, 0.06);
+
+    --radius-lg: 16px;
+    --radius-md: 12px;
+    --radius-sm: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #1f1f1f;
+        --surface: #282a2c;
+        --surface-variant: #303134;
+        --surface-hover: #35363a;
+        --border: rgba(255, 255, 255, 0.12);
+        --text: #e3e3e3;
+        --text-secondary: #9aa0a6;
+
+        --primary: #a8c7fa;
+        --primary-hover: #c2dafc;
+        --on-primary: #062e6f;
+        --primary-container: #0842a0;
+        --on-primary-container: #d3e3fd;
+
+        --switch-track-off: #5f6368;
+        --switch-thumb-off: #e3e3e3;
+
+        --danger: #ff6b6b;
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    width: 340px;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Header ------------------------------------------------------------- */
+.header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.header__icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    flex: none;
+}
+
+.header__title {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.1px;
+}
+
+.content {
+    padding: 14px 16px 16px;
+}
+
+/* ---- Site status card --------------------------------------------------- */
+.status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--surface-variant);
+    border-radius: var(--radius-md);
+}
+
+.status__text {
+    flex: 1;
+    min-width: 0;
+}
+
+.status__label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-weight: 500;
+    color: var(--text);
+}
+
+.status__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+    flex: none;
+    transition: background 0.2s ease;
+}
+
+.status__dot--on {
+    background: #1e8e3e;
+}
+
+@media (prefers-color-scheme: dark) {
+    .status__dot--on {
+        background: #81c995;
+    }
+}
+
+.status__domain {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ---- Switch ------------------------------------------------------------- */
+.switch {
+    appearance: none;
+    border: none;
+    background: var(--switch-track-off);
+    width: 40px;
+    height: 24px;
+    border-radius: 999px;
+    position: relative;
+    cursor: pointer;
+    flex: none;
+    padding: 0;
+    transition: background 0.22s ease;
+}
+
+.switch__thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--switch-thumb-off);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    transition: transform 0.22s cubic-bezier(0.2, 0, 0, 1), background 0.22s ease;
+}
+
+.switch--on {
+    background: var(--primary);
+}
+
+.switch--on .switch__thumb {
+    transform: translateX(16px);
+    background: var(--on-primary);
+}
+
+.switch:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* ---- Keywords section --------------------------------------------------- */
+.section-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 18px 2px 10px;
+}
+
+.section-head__title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-secondary);
+}
+
+.count {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--primary-container);
+    color: var(--on-primary-container);
+    font-size: 11px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ---- Add-keyword input -------------------------------------------------- */
+.input-row {
+    display: flex;
+    gap: 8px;
+}
+
+.input {
+    flex: 1;
+    min-width: 0;
+    height: 40px;
+    padding: 0 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    font-family: inherit;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input::placeholder {
+    color: var(--text-secondary);
+}
+
+.input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 1px var(--primary);
+}
+
+.add-btn {
+    height: 40px;
+    width: 40px;
+    flex: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--primary);
+    color: var(--on-primary);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, transform 0.05s ease;
+}
+
+.add-btn:hover {
+    background: var(--primary-hover);
+}
+
+.add-btn:active {
+    transform: scale(0.95);
+}
+
+.add-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.add-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+.hint {
+    margin: 8px 2px 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+.hint code {
+    background: var(--surface-variant);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: "Roboto Mono", ui-monospace, monospace;
+}
+
+/* ---- Chips -------------------------------------------------------------- */
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+    max-height: 168px;
+    overflow-y: auto;
+}
+
+.chips::-webkit-scrollbar {
+    width: 8px;
+}
+
+.chips::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 6px 5px 12px;
+    background: var(--surface-variant);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    font-size: 12.5px;
+    max-width: 100%;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+}
+
+.chip:active {
+    transform: scale(0.96);
+}
+
+.chip:hover {
+    border-color: var(--danger);
+}
+
+.chip:hover .chip__remove {
+    color: var(--danger);
+}
+
+.chip__label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chip__remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    color: var(--text-secondary);
+    cursor: pointer;
+    flex: none;
+    font-size: 14px;
+    line-height: 1;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.chip:hover .chip__remove:hover {
+    background: var(--danger);
+    color: #ffffff;
+}
+
+/* ---- Empty state -------------------------------------------------------- */
+.empty {
+    margin-top: 14px;
+    padding: 22px 16px;
+    text-align: center;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+}
+
+.empty__title {
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 2px;
+}
+
+.empty__sub {
+    font-size: 12px;
+}

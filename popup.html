@@ -2,107 +2,72 @@
 <html>
 
 <head>
+    <meta charset="utf-8">
     <title>The Redaction Act</title>
+    <link rel="stylesheet" href="popup.css">
     <script src="knockout.js"></script>
     <script src="knockout-secure-binding.js"></script>
     <script src="popup.js"></script>
-
-    <style>
-        body {
-            width: 400px;
-            padding: 10px;
-            font-family: Arial, sans-serif;
-        }
-    </style>
 </head>
 
-<body style="padding: 0 !important;">
-    <div style="
-    margin: 8px;
-    border-radius: 16px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-    background: #ffffff;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    overflow: hidden;
-    border: 1px solid #e5e5e5;
-">
-        <!-- Header -->
-        <div style="
-      background-color: #f4f4f4;
-      padding: 16px;
-      text-align: center;
-      font-weight: 600;
-      font-size: 16px;
-      color: #111;
-      border-bottom: 1px solid #e5e5e5;
-  ">
-            The Redaction Act
-        </div>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <img class="header__icon" src="icon_on.png" alt="">
+        <span class="header__title">The Redaction Act</span>
+    </div>
 
-        <!-- Input Field -->
-        <div style="padding: 16px;">
-            <form data-bind="submit: addKeyword" style="display: flex; gap: 8px;">
-                <input type="text" placeholder="Add keyword(s)" style="
-                    flex: 1;
-                    padding: 10px 12px;
-                    border: 1px solid #ccc;
-                    border-radius: 8px;
-                    font-size: 14px;
-                " data-bind="value: newKeyword" />
-                <button style="
-                    padding: 10px 16px;
-                    background-color: #007aff;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    font-weight: 500;
-                    font-size: 14px;
-                    cursor: pointer;
-                " data-bind="click: addKeyword">Add</button>
-            </form>
-
-            <!-- Usage hint -->
-            <div style="margin-top: 8px; font-size: 11px; color: #888; line-height: 1.4;">
-                Whole words match (incl. plurals). Use a space for phrases, or
-                prefix <code style="background:#eee;padding:1px 4px;border-radius:4px;">~</code>
-                for loose substring matching.
+    <div class="content">
+        <!-- Site status + toggle -->
+        <div class="status">
+            <div class="status__text">
+                <div class="status__label">
+                    <span class="status__dot" data-bind="css: { 'status__dot--on': filterEnabled }"></span>
+                    <span data-bind="text: statusLabel"></span>
+                </div>
+                <div class="status__domain" data-bind="text: currentDomain"></div>
             </div>
-
-            <!-- Keyword Tags -->
-            <div style="margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px;">
-                <!-- ko foreach: keywords -->
-                <span style="
-                    background: #eee;
-                    padding: 6px 12px;
-                    border-radius: 999px;
-                    font-size: 13px;
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 6px;
-                ">
-                <span data-bind="text: $data"></span>
-                <span style="cursor: pointer;" title="Remove Keyword"
-                data-bind="click: $parent.removeKeyword">✕</span>
-                </span>
-                <!-- /ko -->
-            </div>
-        </div>
-
-        <!-- Toggle Button -->
-        <div style="padding: 16px; border-top: 1px solid #e5e5e5; text-align: center;">
-            <button style="
-                width: 100%;
-                padding: 12px;
-                font-size: 14px;
-                font-weight: 500;
-                background-color: #f44336;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-            " data-bind="click: toggleFilter, style: { backgroundColor: $root.backgroundColor }">
-                <span data-bind="text: isFilterOn"></span> for (<span data-bind="text: currentDomain"></span>)
+            <button class="switch" type="button" role="switch"
+                data-bind="click: toggleFilter, css: { 'switch--on': filterEnabled }, attr: { 'aria-checked': filterEnabled }">
+                <span class="switch__thumb"></span>
             </button>
+        </div>
+
+        <!-- Keywords header -->
+        <div class="section-head">
+            <span class="section-head__title">Keywords</span>
+            <span class="count" data-bind="text: keywordCount"></span>
+        </div>
+
+        <!-- Add keyword -->
+        <form class="input-row" data-bind="submit: addKeyword">
+            <input class="input" type="text" placeholder="Add keyword(s)…" data-bind="value: newKeyword">
+            <button class="add-btn" type="submit" title="Add" aria-label="Add keyword">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+            </button>
+        </form>
+
+        <div class="hint">
+            Whole words match (incl. plurals). Use a space for phrases, or prefix
+            <code>~</code> for loose substring matching. Separate multiple with commas.
+        </div>
+
+        <!-- Keyword chips (click anywhere on a pill to remove it) -->
+        <div class="chips" data-bind="visible: hasKeywords">
+            <!-- ko foreach: keywords -->
+            <span class="chip" title="Click to remove" data-bind="click: $parent.removeKeyword">
+                <span class="chip__label" data-bind="text: $data"></span>
+                <span class="chip__remove" aria-hidden="true">✕</span>
+            </span>
+            <!-- /ko -->
+        </div>
+
+        <!-- Empty state -->
+        <div class="empty" data-bind="visible: isEmpty">
+            <div class="empty__title">No keywords yet</div>
+            <div class="empty__sub">Add a word above to start hiding matching content.</div>
         </div>
     </div>
 </body>

@@ -47,8 +47,10 @@ function ViewModel() {
         });
     };
 
-    self.isFilterOn = ko.computed(() => self.filterEnabled() ? "Toggle OFF" : "Toggle On");
-    self.backgroundColor = ko.computed(() => self.filterEnabled() ? '#f44336' : '#4caf50');
+    self.keywordCount = ko.computed(() => self.keywords().length);
+    self.hasKeywords = ko.computed(() => self.keywords().length > 0);
+    self.isEmpty = ko.computed(() => self.keywords().length === 0);
+    self.statusLabel = ko.computed(() => self.filterEnabled() ? "Active on this site" : "Paused on this site");
 
     self.toggleFilter = () => {
         chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
