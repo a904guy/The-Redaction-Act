@@ -4,13 +4,12 @@ const getDomain = url => new URL(url).hostname;
 chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilters = {} }) => {
     const currentDomain = getDomain(window.location.href);
     let filterEnabled = siteFilters[currentDomain] ?? true;
-    let currentKeywords = keywords;
 
     /**
      * Logs messages to the console only if DEBUG is true.
      *
-     * @param {string} type - The type of console method (e.g., "log", "info", "warn", "error", "group", "groupEnd").
-     * @param {...any} args - The arguments to pass to the console method.
+     * @param {string} type - The console method to use ("log", "info", "warn", "group", "groupEnd", ...).
+     * @param {...any} args - Arguments forwarded to the console method.
      */
     const debugLog = (type, ...args) => {
         if (DEBUG && console[type]) {
@@ -18,155 +17,534 @@ chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilte
         }
     };
 
+    // ---------------------------------------------------------------------------
+    // 1. Keyword matching — substring candidates, then morphological validation
+    // ---------------------------------------------------------------------------
+
     /**
-     * Checks if the given text contains any of the current keywords.
+     * Normalizes text for comparison: lowercases, strips diacritics (so "Élon"
+     * matches "elon"), folds curly to straight apostrophes, and collapses
+     * whitespace. Unicode-aware.
      *
-     * @param {string} txt - The text to check for keywords.
-     * @returns {boolean} - Returns true if the text contains any of the keywords, otherwise false.
+     * @param {string} s - Raw text.
+     * @returns {string} Normalized text.
      */
-    const hasKeyword = txt => {
-        const lower = txt.toLowerCase();
-        return currentKeywords.some(k => lower.includes(k.toLowerCase()));
+    const normalize = s =>
+        s.toLowerCase()
+            .normalize("NFD")
+            .replace(/\p{M}/gu, "")
+            .replace(/[’]/g, "'")
+            .replace(/\s+/g, " ")
+            .trim();
+
+    // Inflectional suffixes accepted after a whole-word stem (plurals, possessives,
+    // common verb forms). The empty string covers the exact word.
+    const WORD_SUFFIXES = ["", "s", "es", "'s", "ing", "ed", "er", "ers", "d"];
+
+    // Matches word tokens including a trailing possessive/contraction ("trump's").
+    const TOKEN_RE = /[\p{L}\p{N}]+(?:'[\p{L}]+)?/gu;
+
+    // Phrase containers longer than this are assumed to be broad blocks, not a
+    // tight phrase, and are skipped to avoid false positives + needless cost.
+    const PHRASE_MAX_LEN = 400;
+
+    let compiled = { words: [], substrings: [], phrases: [] };
+
+    /**
+     * Compiles raw keyword strings into matcher buckets. Syntax:
+     *   "~term"        -> substring (opt-in to the old broad behavior)
+     *   "two words"    -> phrase (matched across inline tags via textContent)
+     *   "term"         -> whole word (with inflection validation)
+     *
+     * @param {string[]} list - Raw keyword strings from storage.
+     * @returns {{words:Object[], substrings:Object[], phrases:Object[]}}
+     */
+    const compileKeywords = list => {
+        const words = [], substrings = [], phrases = [];
+        for (const raw of list) {
+            if (!raw) continue;
+            let s = String(raw).trim();
+            let substring = false;
+            if (s.startsWith("~")) { substring = true; s = s.slice(1).trim(); }
+            const stem = normalize(s);
+            if (!stem) continue;
+            const entry = { raw: s, stem };
+            if (substring) substrings.push(entry);
+            else if (/\s/.test(stem)) phrases.push(entry);
+            else words.push(entry);
+        }
+        return { words, substrings, phrases };
     };
 
     /**
-     * Filters the current keywords that are present in the given text.
+     * Matches word and substring keywords against a single text node's value.
+     * Words are validated: the matched token must START with the stem and any
+     * remainder must be an allowed inflection — so "art" won't match "Bart" and
+     * "Elon" won't match "melon", but "Trumps"/"Trump's" still match "Trump".
      *
-     * @param {string} text - The text to search for keywords.
-     * @returns {Array} - An array of keywords found in the text.
+     * @param {string} normText - Already-normalized text.
+     * @returns {Set<string>} Display names of matched keywords.
      */
-    const containsKeywords = text => {
-        return currentKeywords.filter(keyword => text.toLowerCase().includes(keyword.toLowerCase()));
-    }
+    const matchWordSubstring = normText => {
+        const found = new Set();
+
+        for (const e of compiled.substrings) {
+            if (normText.includes(e.stem)) found.add(e.raw);
+        }
+
+        if (compiled.words.length) {
+            const tokens = normText.match(TOKEN_RE);
+            if (tokens) {
+                for (const e of compiled.words) {
+                    for (const tok of tokens) {
+                        if (tok.length < e.stem.length || !tok.startsWith(e.stem)) continue;
+                        if (WORD_SUFFIXES.includes(tok.slice(e.stem.length))) { found.add(e.raw); break; }
+                    }
+                }
+            }
+        }
+
+        return found;
+    };
 
     /**
-     * Finds the nearest ancestor element that has repeating siblings with the same tag name and class name.
+     * Matches phrase keywords by climbing from a text node toward a tight
+     * containing block and testing its normalized textContent — so a phrase split
+     * across inline tags ("<span>Breaking</span> <span>News</span>") still matches.
      *
-     * @param {HTMLElement} el - The starting element to search from.
-     * @returns {HTMLElement|null} The nearest ancestor element with repeating siblings, or null if none is found.
+     * @param {Text} textNode - The text node where scanning started.
+     * @param {WeakSet} tested - Per-scan memo of already-tested ancestors.
+     * @returns {{element:HTMLElement, keywords:Set<string>}|null}
      */
-    const getRepeatingAncestor = el => {
-        let current = el;
-        while (current && current.parentElement && current.parentElement.tagName !== "BODY") {
-            const parent = current.parentElement;
-            const siblings = [...parent.parentElement.children].filter(sib =>
-                sib.tagName === parent.tagName && sib.className === parent.className
-            );
-            if (siblings.length > 1) return parent;
-            current = parent;
+    const matchPhraseClimb = (textNode, tested) => {
+        if (!compiled.phrases.length) return null;
+        let el = textNode.parentElement;
+        let depth = 0;
+        while (el && el.nodeType === Node.ELEMENT_NODE && depth < 5 && !STRUCTURAL.has(el.tagName)) {
+            if (!tested.has(el)) {
+                tested.add(el);
+                const tc = el.textContent;
+                if (tc && tc.length <= PHRASE_MAX_LEN) {
+                    const norm = normalize(tc);
+                    const hit = new Set();
+                    for (const p of compiled.phrases) if (norm.includes(p.stem)) hit.add(p.raw);
+                    if (hit.size) return { element: el, keywords: hit };
+                }
+            }
+            el = el.parentElement;
+            depth++;
         }
         return null;
     };
 
+    // ---------------------------------------------------------------------------
+    // 2. Container selection — structural-signature repeating item + size guard
+    // ---------------------------------------------------------------------------
+
+    // Tags we never climb into / never hide wholesale.
+    const STRUCTURAL = new Set(["BODY", "HTML", "MAIN", "NAV", "HEADER", "FOOTER"]);
+    // Inline tags are climbed through but never chosen as the redaction target.
+    const INLINE = new Set([
+        "SPAN", "A", "B", "I", "EM", "STRONG", "SMALL", "MARK", "LABEL", "CODE",
+        "SUP", "SUB", "U", "FONT", "TIME", "ABBR", "CITE", "Q", "S", "DEL", "INS", "WBR", "BR"
+    ]);
+    // Tags that are inherently "one item in a list".
+    const ITEM_TAGS = new Set(["ARTICLE", "LI"]);
+
+    const MIN_SIMILAR_SIBLINGS = 2;   // >= 2 similar siblings (3+ items) => a feed/grid item
+    const MAX_CLIMB = 15;
+
     /**
-     * Checks the content of the document for specific keywords and applies a redaction filter to matched elements.
+     * Returns the tag names of an element's first children, used as a
+     * class-independent structural fingerprint.
      *
-     * This function traverses the document's text nodes using a TreeWalker, identifies nodes containing specific keywords,
-     * and checks if their parent elements and ancestors are small enough based on their dimensions. If the conditions are met,
-     * the elements are added to a list and a redaction filter is applied to them.
-     *
-     * The function logs the matched elements and their keywords to the console and applies a CSS class to hide or show the elements
-     * based on the filterEnabled flag.
+     * @param {HTMLElement} el
+     * @returns {string[]}
      */
-    const checkContent = () => {
-        debugLog("group", "Content Check");
-        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-        const matched = [];
-        const screenArea = window.innerWidth * window.innerHeight;
+    const childTagKey = el => {
+        const out = [];
+        const kids = el.children;
+        for (let i = 0; i < kids.length && i < 12; i++) out.push(kids[i].tagName);
+        return out;
+    };
 
-            /**
-             * Determines if an element is small enough based on its dimensions.
-             *
-             * This function checks if the area of the element is less than half of the screen area,
-             * or if the width is less than 80% of the window's inner width, or if the height is less
-             * than 80% of the window's inner height.
-             *
-             * @param {HTMLElement} el - The element to be checked.
-             * @returns {boolean} - Returns true if the element is small enough, otherwise false.
-             */
-            const isSmallEnough = el => {
-                const { width, height } = el.getBoundingClientRect();
-                return (width * height < 0.5 * screenArea) || width < 0.5 * window.innerWidth || height < 0.5 * window.innerHeight;
-            };
+    /**
+     * Determines whether two elements are structurally similar WITHOUT relying on
+     * class names (which modern frameworks hash per-item). Same tag is required;
+     * a shared data-testid is a strong signal; otherwise child-tag overlap
+     * (Jaccard) is used, allowing differing child counts (SiSTeR-style).
+     *
+     * @param {HTMLElement} a
+     * @param {HTMLElement} b
+     * @returns {boolean}
+     */
+    const isSimilar = (a, b) => {
+        if (a.tagName !== b.tagName) return false;
 
-        /**
-         * Iterates through all text nodes in the document body using a TreeWalker.
-         * 
-         * For each text node, it checks if the node contains a keyword and if its parent element
-         * is small enough based on certain criteria. If both conditions are met, it adds the parent
-         * element to the matched array. It also checks if the ancestor of the parent element is 
-         * repeating and small enough, and if so, logs the matched ancestor and keywords.
-         */
-        while (walker.nextNode()) {
-            const node = walker.currentNode;
-            if (!hasKeyword(node.nodeValue)) continue;
+        const ta = a.getAttribute("data-testid"), tb = b.getAttribute("data-testid");
+        if (ta || tb) return ta === tb;
 
-            const parentElement = node.parentElement;
-            if (!isSmallEnough(parentElement)) continue;
-            matched.push(parentElement);
+        if (a.getAttribute("role") !== b.getAttribute("role")) return false;
 
-            const ancestor = getRepeatingAncestor(parentElement);
-            if (!ancestor || !isSmallEnough(ancestor)) continue;
+        const ca = childTagKey(a), cb = childTagKey(b);
+        if (ca.length === 0 && cb.length === 0) return true;
 
-            debugLog("log", "%cAncestor Match: " + node.nodeValue.trim(), "color: #009688; font-weight: bold;");
-            debugLog("log", '%cKeywords Matched: ' + containsKeywords(node.nodeValue.trim()), "color:rgb(150, 0, 0); font-weight: bold;");
+        const sa = new Set(ca), sb = new Set(cb);
+        let inter = 0;
+        sa.forEach(t => { if (sb.has(t)) inter++; });
+        const union = new Set([...sa, ...sb]).size;
+        return union ? inter / union >= 0.5 : true;
+    };
 
-            matched.push(ancestor);
+    /**
+     * Counts how many of an element's siblings are structurally similar to it.
+     *
+     * @param {HTMLElement} el
+     * @returns {number}
+     */
+    const countSimilarSiblings = el => {
+        const parent = el.parentElement;
+        if (!parent) return 0;
+        let n = 0;
+        for (const sib of parent.children) {
+            if (sib !== el && isSimilar(el, sib)) n++;
+        }
+        return n;
+    };
+
+    /**
+     * Detects whether an element is itself a list/grid CONTAINER (many mutually
+     * similar children) — we must never hide that, only the items inside it.
+     *
+     * @param {HTMLElement} el
+     * @returns {boolean}
+     */
+    const isListContainer = el => {
+        const kids = el.children;
+        if (kids.length < 5) return false;
+        let similar = 0;
+        for (const k of kids) if (isSimilar(kids[0], k)) similar++;
+        return similar >= 5;
+    };
+
+    /**
+     * Recognizes semantic "one item" elements (article/li, ARIA roles, itemprop,
+     * data-testid cells, or custom elements) that have repeating siblings.
+     *
+     * @param {HTMLElement} el
+     * @returns {boolean}
+     */
+    const isItemish = el => {
+        if (ITEM_TAGS.has(el.tagName)) return true;
+        const role = el.getAttribute("role");
+        if (role === "article" || role === "listitem") return true;
+        if (el.hasAttribute("data-testid") || el.hasAttribute("data-test") || el.hasAttribute("itemprop")) {
+            return countSimilarSiblings(el) >= 1;
+        }
+        if (el.tagName.includes("-") && countSimilarSiblings(el) >= 1) return true;  // web component
+        return false;
+    };
+
+    /**
+     * The real size guard (AND logic, unlike the old OR version). Rejects elements
+     * that cover too much of the viewport, full-bleed regions, and list containers.
+     * Elements with no layout box (0x0) pass, so not-yet-rendered nodes aren't lost.
+     *
+     * @param {HTMLElement} el
+     * @returns {boolean}
+     */
+    const sizeGuard = el => {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) return true;
+        const vw = window.innerWidth, vh = window.innerHeight;
+        if (r.width * r.height >= 0.5 * vw * vh) return false;        // too much screen area
+        if (r.width >= 0.9 * vw && r.height >= 0.9 * vh) return false; // full-bleed region
+        return true;
+    };
+
+    /**
+     * Given the element where a keyword was found, finds the best container to
+     * hide: the smallest repeating feed/grid item (or semantic item) that passes
+     * the size guard. Falls back to the nearest block-level self-contained
+     * ancestor so we never leave a broken inline fragment.
+     *
+     * @param {HTMLElement} startEl
+     * @returns {HTMLElement|null}
+     */
+    const findTarget = startEl => {
+        let el = startEl, depth = 0, lastWithinGuard = null;
+        while (el && el.nodeType === Node.ELEMENT_NODE && !STRUCTURAL.has(el.tagName) && depth < MAX_CLIMB) {
+            if (!sizeGuard(el)) break;          // too big -> stop climbing
+            lastWithinGuard = el;
+            if (isItemish(el)) return el;       // semantic item wins
+            if (!INLINE.has(el.tagName) &&
+                countSimilarSiblings(el) >= MIN_SIMILAR_SIBLINGS &&
+                !isListContainer(el)) {
+                return el;                       // smallest repeating block item
+            }
+            el = el.parentElement;
+            depth++;
+        }
+        return fallbackBlock(startEl, lastWithinGuard);
+    };
+
+    /**
+     * Fallback target: the nearest block-level ancestor (skipping inline wrappers)
+     * that still passes the size guard.
+     *
+     * @param {HTMLElement} startEl
+     * @param {HTMLElement|null} lastWithinGuard - Last ancestor known to pass the guard.
+     * @returns {HTMLElement|null}
+     */
+    const fallbackBlock = (startEl, lastWithinGuard) => {
+        let el = startEl;
+        while (el && el.nodeType === Node.ELEMENT_NODE && !STRUCTURAL.has(el.tagName)) {
+            if (!sizeGuard(el)) break;
+            if (!INLINE.has(el.tagName)) return el;
+            el = el.parentElement;
+        }
+        return lastWithinGuard;
+    };
+
+    // ---------------------------------------------------------------------------
+    // 3. Hiding — stylesheet class + data attribute, fully reversible
+    // ---------------------------------------------------------------------------
+
+    const REDACTED_ATTR = "data-redacted-by";
+
+    // Hide via an INLINE style, not a document CSS class: document stylesheets do
+    // not cross shadow boundaries, so a class can't hide elements inside Shadow DOM
+    // (MSN/Reddit/YouTube feeds). Inline display:none !important lives on the
+    // element itself, works in light DOM and any shadow root, and beats site rules.
+    const hideEl = el => el.style.setProperty("display", "none", "important");
+    const showEl = el => el.style.removeProperty("display");
+
+    /**
+     * Marks an element as matched (data attribute) and hides it when the filter is
+     * enabled for this domain.
+     *
+     * @param {HTMLElement} el
+     * @param {Set<string>} keywords
+     */
+    const mark = (el, keywords) => {
+        el.setAttribute(REDACTED_ATTR, [...keywords].join(", "));
+        if (filterEnabled) hideEl(el); else showEl(el);
+    };
+
+    /**
+     * Runs a callback against every root we observe (document body + shadow roots),
+     * which is how we reach redacted elements that live inside Shadow DOM.
+     *
+     * @param {(root:ParentNode)=>void} fn
+     */
+    const forEachRoot = fn => {
+        for (const root of observedRoots) {
+            if (root.querySelectorAll) fn(root);
+        }
+    };
+
+    /** Shows/hides all marked elements (used by the per-domain toggle). */
+    const setHidden = hidden =>
+        forEachRoot(root => root.querySelectorAll(`[${REDACTED_ATTR}]`)
+            .forEach(hidden ? hideEl : showEl));
+
+    /** Clears all redaction state (used when keywords change before a fresh scan). */
+    const clearAll = () =>
+        forEachRoot(root => root.querySelectorAll(`[${REDACTED_ATTR}]`).forEach(el => {
+            showEl(el);
+            el.removeAttribute(REDACTED_ATTR);
+        }));
+
+    // ---------------------------------------------------------------------------
+    // 4. Scanning + Shadow DOM traversal + debounced incremental observation
+    // ---------------------------------------------------------------------------
+
+    const observedRoots = new Set();
+    const observer = new MutationObserver(records => {
+        for (const rec of records) {
+            rec.addedNodes.forEach(n => {
+                if (n.nodeType === Node.ELEMENT_NODE || n.nodeType === Node.TEXT_NODE) pending.add(n);
+            });
+        }
+        if (pending.size) schedule();
+    });
+    const pending = new Set();
+    let scheduled = false;
+
+    /**
+     * Begins observing a root (document body or a shadow root) for added subtrees.
+     * Attributes are intentionally NOT observed so our own class writes don't
+     * retrigger the observer. Idempotent via observedRoots.
+     *
+     * @param {Node} root
+     */
+    const observeRoot = root => {
+        if (observedRoots.has(root)) return;
+        observedRoots.add(root);
+        observer.observe(root, { childList: true, subtree: true });
+    };
+
+    /**
+     * Processes one text node: matches keywords, resolves the container, and
+     * records it (read phase only — no DOM writes here).
+     *
+     * @param {Text} node
+     * @param {Map<HTMLElement,Set<string>>} targets
+     * @param {WeakSet} phraseTested
+     */
+    const handleTextNode = (node, targets, phraseTested) => {
+        const val = node.nodeValue;
+        if (!val || !val.trim()) return;
+
+        let matched = matchWordSubstring(normalize(val));
+        let origin = node.parentElement;
+        if (matched.size === 0) {
+            const pr = matchPhraseClimb(node, phraseTested);
+            if (!pr) return;
+            matched = pr.keywords;
+            origin = pr.element;
+        }
+        if (!origin) return;
+
+        const target = findTarget(origin);
+        if (!target) return;
+
+        const set = targets.get(target) || new Set();
+        matched.forEach(k => set.add(k));
+        targets.set(target, set);
+    };
+
+    /**
+     * Walks a root's subtree collecting redaction targets. Pierces open shadow
+     * roots (registering an observer on each) so feed content inside Shadow DOM
+     * (Reddit/YouTube) is reached.
+     *
+     * @param {Node} root
+     * @param {Map<HTMLElement,Set<string>>} targets
+     * @param {WeakSet} phraseTested
+     */
+    const collectFrom = (root, targets, phraseTested) => {
+        if (root.nodeType === Node.TEXT_NODE) { handleTextNode(root, targets, phraseTested); return; }
+        if (root.nodeType === Node.ELEMENT_NODE && root.shadowRoot) {
+            observeRoot(root.shadowRoot);
+            collectFrom(root.shadowRoot, targets, phraseTested);
         }
 
-        // Log the total number of matched elements to the console.
-        debugLog("info", "Total matched elements:", matched.length);
+        let walker;
+        try {
+            walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+        } catch (e) {
+            return;
+        }
+        while (walker.nextNode()) {
+            const n = walker.currentNode;
+            try {
+                if (n.nodeType === Node.ELEMENT_NODE) {
+                    if (n.shadowRoot) {
+                        observeRoot(n.shadowRoot);
+                        collectFrom(n.shadowRoot, targets, phraseTested);
+                    }
+                    continue;
+                }
+                handleTextNode(n, targets, phraseTested);
+            } catch (e) {
+                debugLog("warn", "node error:", e && e.message);
+            }
+        }
+    };
 
-        // Iterate over each matched element, add the "redaction-filter" class,
-        // and set the display style based on the filterEnabled flag.
-        matched.forEach(container => {
-            container.classList.add("redaction-filter");
-            container.style.display = filterEnabled ? "none" : "";
+    /**
+     * Read-then-write scan over a set of root nodes: collects all targets first
+     * (reads/layout), then applies marks (writes) to avoid layout thrashing.
+     *
+     * @param {Node[]} roots
+     */
+    const runScan = roots => {
+        if (!compiled.words.length && !compiled.substrings.length && !compiled.phrases.length) return;
+        debugLog("group", "Redaction scan");
+        const targets = new Map();
+        const phraseTested = new WeakSet();
+        for (const r of roots) {
+            try {
+                collectFrom(r, targets, phraseTested);
+            } catch (e) {
+                debugLog("warn", "scan error:", e && e.message);
+            }
+        }
+
+        targets.forEach((kws, el) => {
+            mark(el, kws);
+            debugLog("log", "%cRedacted: " + [...kws].join(", "), "color:#009688; font-weight:bold;", el);
         });
-
-        // End the console group for the content check.
+        debugLog("info", "Targets this scan:", targets.size);
         debugLog("groupEnd");
     };
 
-    // Initial Page Load Function Call
-    checkContent();
+    /** Coalesces mutation bursts into a single idle scan of only the added subtrees. */
+    const schedule = () => {
+        if (scheduled) return;
+        scheduled = true;
+        const run = () => {
+            scheduled = false;
+            const nodes = [...pending];
+            pending.clear();
+            if (nodes.length) runScan(nodes);
+        };
+        if (window.requestIdleCallback) requestIdleCallback(run, { timeout: 500 });
+        else setTimeout(run, 100);
+    };
 
-    // Create a new MutationObserver instance to monitor changes in the DOM.
-    const observer = new MutationObserver(() => {
-        debugLog("group", "DOM Mutation");
-        debugLog("info", "Content re-check triggered by DOM update.");
-        checkContent();
-        debugLog("groupEnd");
-    });
+    // ---------------------------------------------------------------------------
+    // 5. Bootstrap + live updates
+    // ---------------------------------------------------------------------------
 
-    // Start observing the document body for changes in its child elements and subtree.
-    observer.observe(document.body, { childList: true, subtree: true });
+    // Re-walk the document to discover + observe any newly-attached shadow roots.
+    // Coalesced through the same debounced scheduler so bursts collapse to one scan.
+    const requestRescan = () => {
+        if (!document.body) return;
+        pending.add(document.body);
+        schedule();
+    };
 
-    // Listen for changes in Chrome storage and update the content accordingly
+    // SPA feeds (esp. inside Shadow DOM) render after our first scan, and NESTED
+    // shadow roots can attach to existing hosts at any time with no childList
+    // mutation we observe and no reliable attachShadow event (declarative/SSR
+    // roots) — and a MutationObserver can't see across a shadow boundary. Dense
+    // early sweeps catch the initial render; a steady low-frequency tick keeps
+    // discovering + observing late/nested roots for the page's lifetime.
+    const RESCAN_SCHEDULE = [400, 1000, 2000, 4000, 7000, 11000, 16000];
+    const RESCAN_INTERVAL = 4000;
+
+    const start = () => {
+        compiled = compileKeywords(keywords);
+        // Marker so the console can confirm THIS build is the one running.
+        document.documentElement.setAttribute("data-redaction-active", chrome.runtime.getManifest().version);
+        // The MAIN-world hook (shadow-hook.js) forces shadow roots open and fires
+        // "redaction:shadow" on attach — a best-effort early trigger.
+        window.addEventListener("redaction:shadow", requestRescan, true);
+        observeRoot(document.body);
+        runScan([document.body]);
+        RESCAN_SCHEDULE.forEach(t => setTimeout(requestRescan, t));
+        setInterval(requestRescan, RESCAN_INTERVAL);
+    };
+
+    if (document.body) start();
+    else document.addEventListener("DOMContentLoaded", start, { once: true });
+
+    // React to keyword / per-site toggle changes pushed from the popup.
     chrome.storage.onChanged.addListener((changes, area) => {
-        debugLog("group", "Storage Change");
-        if (area === "sync") {
+        if (area !== "sync") return;
 
-            // Check if the siteFilters have changed in the storage
-            if (changes.siteFilters) {
-                debugLog("info", "siteFilters updated:", changes.siteFilters.newValue);
-                chrome.storage.sync.get("siteFilters", ({ siteFilters }) => {
-                    filterEnabled = siteFilters[currentDomain] ?? true;
-                    document.querySelectorAll(".redaction-filter").forEach(el => {
-                        el.style.display = filterEnabled ? "none" : "";
-                    });
-                    checkContent();
-                });
-            }
-            
-            // Check if the keywords have changed in the storage
-            if (changes.keywords) {
-                debugLog("info", "keywords updated:", changes.keywords.newValue);
-                currentKeywords = changes.keywords.newValue || [];
-                checkContent();
-            }
-
+        if (changes.keywords) {
+            currentKeywords = changes.keywords.newValue || [];
+            compiled = compileKeywords(currentKeywords);
+            clearAll();                 // drop stale matches, then re-evaluate the page
+            runScan([document.body]);
         }
-        debugLog("groupEnd");
+
+        if (changes.siteFilters) {
+            filterEnabled = (changes.siteFilters.newValue || {})[currentDomain] ?? true;
+            setHidden(filterEnabled);   // toggle visibility without re-scanning
+        }
     });
 });

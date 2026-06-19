@@ -61,6 +61,13 @@
                 " data-bind="click: addKeyword">Add</button>
             </form>
 
+            <!-- Usage hint -->
+            <div style="margin-top: 8px; font-size: 11px; color: #888; line-height: 1.4;">
+                Whole words match (incl. plurals). Use a space for phrases, or
+                prefix <code style="background:#eee;padding:1px 4px;border-radius:4px;">~</code>
+                for loose substring matching.
+            </div>
+
             <!-- Keyword Tags -->
             <div style="margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px;">
                 <!-- ko foreach: keywords -->
