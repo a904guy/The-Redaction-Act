@@ -2,8 +2,9 @@
     "manifest_version": 3,
     "name": "The Redaction Act",
     "short_name": "RedactionAct",
-    "version": "2.1",
+    "version": "2.2",
     "description": "Filters out elements containing specified keywords to enhance page readability.",
+    "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqEsN8+EuwULAG2ebTKICo630qbX1DH0ITRMrdDs8bKonUoljMq6U3ltmfHsBT6S8GMpUN2q/vf5PPPNfhr7vupWYepTyfewoNTcJqslHnVglgF76RKIqzayDyocgSo4bIp7vtBWVHVs78r2FeveyeY4st2m6wFycz89p46KvYh7HrL3r99U0fUg5pQTRKThpBol1Dtl4uhEZoHKTWS1O/w31+Z4FImUc4mJMQRkMugzgKjySEopOvTKKJb3e6DsLTn/LgmTII1uf80vUj1NRxT6VE5glCn9TULt4TAneHFj66ssMVu5TTXeA1oPq5F5KSfY5aaQ9ZBasqcEiqC4sDwIDAQAB",
     "author": "Andy Hawkins",
     "homepage_url": "https://github.com/a904guy/Redaction-Act",
     "icons": {

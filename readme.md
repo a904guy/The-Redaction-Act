@@ -25,18 +25,16 @@ The Redaction Act is a browser extension designed to enhance your web experience
 - Toggle the filter off or on, to immediately apply changes on the current domain.
 
 ## Screenshots
-### Main Panel
-![Main Panel](https://github.com/a904guy/The-Redaction-Act/blob/main/media/MainPanel.png)
 
-### Reddit Before
-![Reddit Before](https://github.com/a904guy/The-Redaction-Act/blob/main/media/Screenshot-Before.png)
-### Reddit After
-![Reditt After](https://github.com/a904guy/The-Redaction-Act/blob/main/media/Screenshot-After.png)
+### Popup — light &amp; dark
+![Popup, light theme](media/MainPanel.png)
+![Popup, dark theme](media/MainPanel-Dark.png)
 
-### CNN Before
-![CNN Before](https://github.com/a904guy/The-Redaction-Act/blob/main/media/Screenshot-CNN-Before.png)
-### CNN After
-![CNN After](https://github.com/a904guy/The-Redaction-Act/blob/main/media/Screenshot-CNN-After.png)
+### Before — a feed full of noise
+![Before filtering](media/Demo-Before-1280x800.png)
+
+### After — matching stories redacted
+![After filtering](media/Demo-After-1280x800.png)
 
 ## Disclaimer
 
