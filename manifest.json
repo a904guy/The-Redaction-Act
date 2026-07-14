@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "The Redaction Act",
     "short_name": "RedactionAct",
-    "version": "2.0",
+    "version": "2.1",
     "description": "Filters out elements containing specified keywords to enhance page readability.",
     "author": "Andy Hawkins",
     "homepage_url": "https://github.com/a904guy/Redaction-Act",
@@ -26,6 +26,9 @@
             "matches": [
                 "<all_urls>"
             ],
+            "exclude_matches": [
+                "https://challenges.cloudflare.com/*"
+            ],
             "js": [
                 "shadow-hook.js"
             ],
@@ -36,6 +39,9 @@
         {
             "matches": [
                 "<all_urls>"
+            ],
+            "exclude_matches": [
+                "https://challenges.cloudflare.com/*"
             ],
             "js": [
                 "content.js"

@@ -1,8 +1,17 @@
 var DEBUG = false;
 const getDomain = url => new URL(url).hostname;
 
+// Hosts the extension is switched OFF for by default (see shadow-hook.js). Keep
+// this list in sync with REDACTION_IGNORED_HOSTS there. Cloudflare Turnstile
+// challenge frames must be left completely untouched or the "verify you are
+// human" check fails.
+const IGNORED_HOSTS = ["challenges.cloudflare.com"];
+const isIgnoredHost = host => IGNORED_HOSTS.some(h => host === h || host.endsWith("." + h));
+
 chrome.storage.sync.get(["keywords", "siteFilters"], ({ keywords = [], siteFilters = {} }) => {
     const currentDomain = getDomain(window.location.href);
+    // Off by default on ignored hosts, and not user-overridable (never scan/hide).
+    if (isIgnoredHost(currentDomain)) return;
     let filterEnabled = siteFilters[currentDomain] ?? true;
 
     /**
