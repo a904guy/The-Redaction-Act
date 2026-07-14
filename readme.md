@@ -27,14 +27,14 @@ The Redaction Act is a browser extension designed to enhance your web experience
 ## Screenshots
 
 ### Popup — light &amp; dark
-![Popup, light theme](media/MainPanel.png)
-![Popup, dark theme](media/MainPanel-Dark.png)
+![Popup, light theme](media/MainPanel.png?v=2.2)
+![Popup, dark theme](media/MainPanel-Dark.png?v=2.2)
 
 ### Before — a feed full of noise
-![Before filtering](media/Demo-Before-1280x800.png)
+![Before filtering](media/Demo-Before-1280x800.png?v=2.2)
 
 ### After — matching stories redacted
-![After filtering](media/Demo-After-1280x800.png)
+![After filtering](media/Demo-After-1280x800.png?v=2.2)
 
 ## Disclaimer
 
